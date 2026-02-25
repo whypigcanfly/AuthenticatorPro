@@ -13,10 +13,11 @@ import { CodeState } from "./models/otp";
 import { getOTPAuthPerLineFromOPTAuthMigration } from "./models/migration";
 import { isChrome, isFirefox } from "./browser";
 import { UserSettings } from "./models/settings";
+import { getMfaForDomain } from "./mcp";
 
 let contentTab: chrome.tabs.Tab | undefined;
 
-chrome.runtime.onMessage.addListener(async (message, sender) => {
+chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   await UserSettings.updateItems();
 
   if (message.action === "getCapture") {
@@ -51,11 +52,56 @@ chrome.runtime.onMessage.addListener(async (message, sender) => {
     contentTab = message.data;
   } else if (message.action === "updateContextMenu") {
     updateContextMenu();
+  } else if (message.action === "getMcp") {
+    console.log("[MCP] Received getMcp request for domain:", message.domain);
+    await handleMcpRequest(message, sendResponse);
+    return true;
   }
 
   // https://stackoverflow.com/a/56483156
   return true;
 });
+
+/**
+ * 处理MCP请求
+ * @param message 包含域名和可选认证信息的消息
+ * @param sendResponse 发送响应的回调函数
+ */
+async function handleMcpRequest(message: any, sendResponse: (response?: any) => void) {
+  try {
+    console.log("[MCP] handleMcpRequest called with:", message);
+    const { domain, passphrase, keyId } = message;
+
+    if (!domain) {
+      console.log("[MCP] Domain is required");
+      sendResponse({
+        success: false,
+        error: "Domain is required"
+      });
+      return;
+    }
+
+    console.log("[MCP] Getting cached passphrase...");
+    // 获取缓存的密码短语（如果有）
+    const { cachedPassphrase, cachedKeyId } = await chrome.storage.session.get();
+    const finalPassphrase = passphrase || cachedPassphrase;
+    const finalKeyId = keyId || cachedKeyId;
+
+    console.log("[MCP] Calling getMfaForDomain...");
+    // 调用MCP API获取验证码
+    const result = await getMfaForDomain(domain, finalPassphrase, finalKeyId);
+
+    console.log("[MCP] Result:", result);
+    // 发送响应
+    sendResponse(result);
+  } catch (error) {
+    console.error("MCP request handling error:", error);
+    sendResponse({
+      success: false,
+      error: "Internal error handling MCP request"
+    });
+  }
+}
 
 chrome.alarms.onAlarm.addListener(() => {
   chrome.storage.session.set({ cachedPassphrase: null, cachedKeyId: null });
@@ -283,11 +329,9 @@ function getBackupToken(service: string) {
         redirUrl;
     } else if (service === "onedrive") {
       redirUrl = encodeURIComponent(chrome.identity.getRedirectURL());
-      authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${
-        getCredentials().onedrive.client_id
-      }&response_type=code&redirect_uri=${redirUrl}&scope=https%3A%2F%2Fgraph.microsoft.com%2FFiles.ReadWrite${
-        UserSettings.items.oneDriveBusiness !== true ? ".AppFolder" : ""
-      }%20https%3A%2F%2Fgraph.microsoft.com%2FUser.Read%20offline_access&response_mode=query&prompt=consent`;
+      authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${getCredentials().onedrive.client_id
+        }&response_type=code&redirect_uri=${redirUrl}&scope=https%3A%2F%2Fgraph.microsoft.com%2FFiles.ReadWrite${UserSettings.items.oneDriveBusiness !== true ? ".AppFolder" : ""
+        }%20https%3A%2F%2Fgraph.microsoft.com%2FUser.Read%20offline_access&response_mode=query&prompt=consent`;
     }
     chrome.identity.launchWebAuthFlow(
       { url: authUrl, interactive: true },
@@ -331,14 +375,14 @@ function getBackupToken(service: string) {
 
                 const response = await fetch(
                   "https://www.googleapis.com/oauth2/v4/token?client_id=" +
-                    getCredentials().drive.client_id +
-                    "&client_secret=" +
-                    getCredentials().drive.client_secret +
-                    "&code=" +
-                    value +
-                    "&redirect_uri=" +
-                    redirUrl +
-                    "&grant_type=authorization_code",
+                  getCredentials().drive.client_id +
+                  "&client_secret=" +
+                  getCredentials().drive.client_secret +
+                  "&code=" +
+                  value +
+                  "&redirect_uri=" +
+                  redirUrl +
+                  "&grant_type=authorization_code",
                   {
                     method: "POST",
                     headers: {

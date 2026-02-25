@@ -144,6 +144,44 @@ export async function getCurrentTab() {
   return tab;
 }
 
+/**
+ * 从域名中提取站点名称
+ * @param domain 完整域名
+ * @returns 提取的站点名称
+ */
+export function extractSiteNameFromDomain(domain: string): string {
+  if (!domain) {
+    return "";
+  }
+  
+  // 移除协议（如果有）
+  let cleanDomain = domain.replace(/^https?:\/\//, "");
+  
+  // 移除端口号（如果有）
+  cleanDomain = cleanDomain.split(":")[0];
+  
+  // 移除路径（如果有）
+  cleanDomain = cleanDomain.split("/")[0];
+  
+  // 提取主机名部分
+  const hostLevelUnits = cleanDomain.split(".");
+  
+  // 处理不同长度的域名
+  if (hostLevelUnits.length === 1) {
+    return cleanDomain;
+  } else if (hostLevelUnits.length === 2) {
+    return hostLevelUnits[0];
+  } else {
+    // 检查是否为常见的二级域名（如com.cn, co.uk等）
+    const secondLevelDomains = ["com", "net", "org", "edu", "gov", "co"];
+    if (secondLevelDomains.includes(hostLevelUnits[hostLevelUnits.length - 2])) {
+      return hostLevelUnits[hostLevelUnits.length - 3];
+    } else {
+      return hostLevelUnits[hostLevelUnits.length - 2];
+    }
+  }
+}
+
 interface TabWithIdAndURL extends chrome.tabs.Tab {
   id: number;
   url: string;
