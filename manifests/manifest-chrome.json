@@ -53,7 +53,9 @@
         "storage",
         "identity",
         "alarms",
-        "scripting"
+        "scripting",
+        "notifications",
+        "clipboardWrite"
     ],
     "optional_permissions": [
         "clipboardWrite",

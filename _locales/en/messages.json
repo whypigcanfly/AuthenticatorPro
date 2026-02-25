@@ -520,5 +520,21 @@
   },
   "activate_auto_filter": {
     "message": "Warning: Smart filter loosely matches the domain name to an account. Always verify that you are on the correct website before entering a code!"
+  },
+  "copyMfaForDomain": {
+    "message": "Copy MFA for current domain",
+    "description": "Context menu item title"
+  },
+  "mfaCopied": {
+    "message": "MFA code copied to clipboard",
+    "description": "Notification when MFA code is copied"
+  },
+  "noMfaFound": {
+    "message": "No MFA found for current domain. Go add one!",
+    "description": "Notification when no MFA account found"
+  },
+  "mfaFetchError": {
+    "message": "Failed to fetch MFA code",
+    "description": "Notification when MFA fetch fails"
   }
 }

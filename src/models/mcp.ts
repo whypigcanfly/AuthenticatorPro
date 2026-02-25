@@ -46,8 +46,8 @@ export class MCP {
                 };
             }
 
-            // 匹配相关账户
-            const matchedEntries = getMatchedEntries(siteName, entries);
+            // 匹配相关账户 - 使用更精确的域名匹配
+            const matchedEntries = this.getMatchedEntriesByDomain(domain, entries);
 
             if (!matchedEntries || matchedEntries.length === 0) {
                 return {
@@ -122,6 +122,61 @@ export class MCP {
                 error: "Internal error while processing MCP request"
             };
         }
+    }
+
+    /**
+     * 使用更精确的域名匹配逻辑
+     * @param domain 完整域名
+     * @param entries 所有账户
+     * @returns 匹配的账户列表
+     */
+    private getMatchedEntriesByDomain(domain: string, entries: any[]): any[] {
+        const matched = [];
+        const domainLower = domain.toLowerCase();
+        const siteName = this.getSiteNameFromDomain(domain).toLowerCase();
+
+        for (const entry of entries) {
+            if (!entry.issuer) {
+                continue;
+            }
+
+            const issuerLower = entry.issuer.toLowerCase();
+
+            // 1. 完全匹配域名
+            if (issuerLower === domainLower || issuerLower === `www.${domainLower}`) {
+                matched.push({ ...entry, matchScore: 3 });
+                continue;
+            }
+
+            // 2. 匹配站点名称
+            if (issuerLower === siteName) {
+                matched.push({ ...entry, matchScore: 2 });
+                continue;
+            }
+
+            // 3. 域名包含issuer
+            if (domainLower.includes(issuerLower) || issuerLower.includes(domainLower)) {
+                matched.push({ ...entry, matchScore: 1 });
+                continue;
+            }
+
+            // 4. 站点名称包含issuer
+            if (siteName && issuerLower.includes(siteName)) {
+                matched.push({ ...entry, matchScore: 1 });
+                continue;
+            }
+        }
+
+        // 按匹配分数排序，返回最佳匹配
+        if (matched.length > 0) {
+            matched.sort((a, b) => (b.matchScore || 0) - (a.matchScore || 0));
+            return matched.map(e => {
+                const { matchScore, ...rest } = e;
+                return rest;
+            });
+        }
+
+        return [];
     }
 
     /**

@@ -16,6 +16,7 @@ import { UserSettings } from "./models/settings";
 import { getMfaForDomain } from "./mcp";
 
 let contentTab: chrome.tabs.Tab | undefined;
+let contextMenuListenerAdded = false;
 
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   await UserSettings.updateItems();
@@ -605,37 +606,133 @@ async function updateContextMenu() {
             title: chrome.i18n.getMessage("extName"),
             contexts: ["all"],
           });
-          chrome.contextMenus.onClicked.addListener((info, tab) => {
-            let popupUrl = "view/popup.html?popup=true";
-            if (tab && tab.url && tab.title) {
-              popupUrl +=
-                "&url=" +
-                encodeURIComponent(tab.url) +
-                "&title=" +
-                encodeURIComponent(tab.title);
-            }
-            let windowType;
-            if (isFirefox) {
-              windowType = "detached_panel";
-            } else {
-              windowType = "panel";
-            }
-            chrome.windows.create({
-              url: chrome.runtime.getURL(popupUrl),
-              type: windowType as chrome.windows.createTypeEnum,
-              height: 400,
-              width: 320,
-            });
-
-            // https://stackoverflow.com/a/56483156
-            return true;
+          chrome.contextMenus.create({
+            id: "copyMfaForDomain",
+            title: chrome.i18n.getMessage("copyMfaForDomain"),
+            contexts: ["all"],
           });
+
+          if (!contextMenuListenerAdded) {
+            chrome.contextMenus.onClicked.addListener((info, tab) => {
+              if (info.menuItemId === "copyMfaForDomain") {
+                handleCopyMfaForDomain(tab);
+              } else {
+                let popupUrl = "view/popup.html?popup=true";
+                if (tab && tab.url && tab.title) {
+                  popupUrl +=
+                    "&url=" +
+                    encodeURIComponent(tab.url) +
+                    "&title=" +
+                    encodeURIComponent(tab.title);
+                }
+                let windowType;
+                if (isFirefox) {
+                  windowType = "detached_panel";
+                } else {
+                  windowType = "panel";
+                }
+                chrome.windows.create({
+                  url: chrome.runtime.getURL(popupUrl),
+                  type: windowType as chrome.windows.createTypeEnum,
+                  height: 400,
+                  width: 320,
+                });
+              }
+
+              // https://stackoverflow.com/a/56483156
+              return true;
+            });
+            contextMenuListenerAdded = true;
+          }
         } else {
           chrome.contextMenus.removeAll();
         }
       }
     }
   );
+}
+
+/**
+ * 处理右键菜单点击：复制当前域名的MFA验证码
+ * @param tab 当前标签页
+ */
+async function handleCopyMfaForDomain(tab: chrome.tabs.Tab | undefined) {
+  try {
+    if (!tab || !tab.url) {
+      console.log("[MCP Context] No tab or URL available");
+      return;
+    }
+
+    console.log("[MCP Context] Tab URL:", tab.url);
+
+    const url = new URL(tab.url);
+    const domain = url.hostname;
+
+    console.log("[MCP Context] Extracted domain:", domain);
+
+    const result = await getMfaForDomain(domain);
+
+    if (result.success && result.code) {
+      console.log("[MCP Context] MFA code found:", result.code);
+
+      if (tab && tab.id) {
+        try {
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: (code: string) => {
+              const textArea = document.createElement("textarea");
+              textArea.value = code;
+              textArea.style.position = "fixed";
+              textArea.style.left = "-999999px";
+              textArea.style.top = "-999999px";
+              document.body.appendChild(textArea);
+              textArea.focus();
+              textArea.select();
+              document.execCommand("copy");
+              document.body.removeChild(textArea);
+              return true;
+            },
+            args: [result.code || ""]
+          });
+
+          chrome.notifications.create({
+            type: "basic",
+            iconUrl: chrome.runtime.getURL("images/icon128.png"),
+            title: chrome.i18n.getMessage("extName"),
+            message: chrome.i18n.getMessage("mfaCopied"),
+            priority: 2
+          });
+        } catch (error) {
+          console.error("[MCP Context] Clipboard error:", error);
+          chrome.notifications.create({
+            type: "basic",
+            iconUrl: chrome.runtime.getURL("images/icon128.png"),
+            title: chrome.i18n.getMessage("extName"),
+            message: chrome.i18n.getMessage("mfaFetchError"),
+            priority: 2
+          });
+        }
+      }
+    } else {
+      console.log("[MCP Context] No MFA found:", result.error);
+      chrome.notifications.create({
+        type: "basic",
+        iconUrl: chrome.runtime.getURL("images/icon128.png"),
+        title: chrome.i18n.getMessage("extName"),
+        message: chrome.i18n.getMessage("noMfaFound"),
+        priority: 2
+      });
+    }
+  } catch (error) {
+    console.error("[MCP Context] Error:", error);
+    chrome.notifications.create({
+      type: "basic",
+      iconUrl: chrome.runtime.getURL("images/icon128.png"),
+      title: chrome.i18n.getMessage("extName"),
+      message: chrome.i18n.getMessage("mfaFetchError"),
+      priority: 2
+    });
+  }
 }
 
 updateContextMenu();
