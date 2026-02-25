@@ -1,14 +1,14 @@
 {
   "extName": {
-    "message": "身份验证器",
+    "message": "身份验证器Pro",
     "description": "Extension Name."
   },
   "extShortName": {
-    "message": "身份验证器",
+    "message": "身份验证器Pro",
     "description": "Extension Short Name."
   },
   "extDesc": {
-    "message": "身份验证器用以在浏览器中生成二步认证代码。",
+    "message": "身份验证器Pro用以在浏览器中生成二步认证代码。",
     "description": "Extension Description."
   },
   "added": {
