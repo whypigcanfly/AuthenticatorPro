@@ -43,6 +43,17 @@
     "background": {
         "service_worker": "dist/background.js"
     },
+    "content_scripts": [
+        {
+            "matches": [
+                "<all_urls>"
+            ],
+            "js": [
+                "dist/content.js"
+            ],
+            "run_at": "document_idle"
+        }
+    ],
     "sandbox": {
         "pages": [
             "view/argon.html"

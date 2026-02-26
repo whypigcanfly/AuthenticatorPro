@@ -3,6 +3,7 @@
   "version": "8.0.2",
   "description": "AuthenticatorPro generates 2-Step Verification codes in your browser.",
   "scripts": {
+    "prebuild": "node .trae/skills/manifest-validator/index.js",
     "compile": "bash scripts/build.sh firefox",
     "dev:chrome": "npm run pretest && webpack --config ./webpack.watch.js",
     "chrome": "bash scripts/build.sh chrome",

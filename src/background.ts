@@ -702,6 +702,17 @@ async function handleCopyMfaForDomain(tab: chrome.tabs.Tab | undefined) {
             message: chrome.i18n.getMessage("mfaCopied"),
             priority: 2
           });
+
+          console.log("[MCP Context] Sending fillMfaCode message to tab:", tab.id, "code:", result.code);
+          chrome.tabs.sendMessage(tab.id, {
+            action: "fillMfaCode",
+            code: result.code
+          }, (response) => {
+            console.log("[MCP Context] Message response:", response);
+            if (chrome.runtime.lastError) {
+              console.error("[MCP Context] Message error:", chrome.runtime.lastError);
+            }
+          });
         } catch (error) {
           console.error("[MCP Context] Clipboard error:", error);
           chrome.notifications.create({

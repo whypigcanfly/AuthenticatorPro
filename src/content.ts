@@ -2,11 +2,17 @@
 import QRCode from "qrcode-reader";
 import jsQR from "jsqr";
 
+console.log("[Content Script] Loaded and ready to receive messages");
+console.log("[Content Script] Current URL:", window.location.href);
+console.log("[Content Script] Message listener registered");
+
 // @ts-expect-error - injected by vue-svg-loader
 import scanGIF from "../images/scan.gif";
 
 if (!document.getElementById("__ga_grayLayout__")) {
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    console.log("[Content Script] Received message:", message.action, message);
+
     switch (message.action) {
       case "capture":
         sendResponse("beginCapture");
@@ -44,6 +50,11 @@ if (!document.getElementById("__ga_grayLayout__")) {
         break;
       case "pastecode":
         pasteCode(message.code);
+        break;
+      case "fillMfaCode":
+        console.log("[Content Script] Received fillMfaCode message:", message.code);
+        fillMfaCodeToActiveInput(message.code);
+        sendResponse({ success: true });
         break;
       case "stopCapture": {
         const captureBox = document.getElementById("__ga_captureBox__");
@@ -376,3 +387,57 @@ window.onkeydown = (event: KeyboardEvent) => {
     }
   }
 };
+
+function fillMfaCodeToActiveInput(code: string) {
+  const activeElement = document.activeElement as HTMLInputElement | HTMLTextAreaElement;
+
+  let targetElement: HTMLInputElement | HTMLTextAreaElement | null = null;
+
+  if (activeElement) {
+    const tagName = activeElement.tagName.toLowerCase();
+
+    if (tagName === "input" || tagName === "textarea") {
+      if (!activeElement.readOnly && !activeElement.disabled) {
+        targetElement = activeElement;
+      }
+    }
+  }
+
+  if (!targetElement) {
+    const inputElements = Array.from(document.querySelectorAll('input:not([readonly]):not([disabled]), textarea:not([readonly]):not([disabled])'));
+
+    for (const element of inputElements) {
+      const input = element as HTMLInputElement | HTMLTextAreaElement;
+
+      const rect = input.getBoundingClientRect();
+      const isVisible = rect.width > 0 && rect.height > 0;
+
+      if (isVisible) {
+        targetElement = input;
+        break;
+      }
+    }
+  }
+
+  if (!targetElement) {
+    console.log("[MFA Fill] No suitable input element found");
+    return;
+  }
+
+  const start = targetElement.selectionStart ?? 0;
+  const end = targetElement.selectionEnd ?? 0;
+  const currentValue = targetElement.value;
+
+  const newValue = currentValue.substring(0, start) + code + currentValue.substring(end);
+  targetElement.value = newValue;
+
+  const newCursorPosition = start + code.length;
+  targetElement.selectionStart = newCursorPosition;
+  targetElement.selectionEnd = newCursorPosition;
+
+  fireInputEvents(targetElement as HTMLInputElement);
+
+  targetElement.focus();
+
+  console.log("[MFA Fill] Code filled successfully");
+}
