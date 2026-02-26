@@ -9,74 +9,72 @@ console.log("[Content Script] Message listener registered");
 // @ts-expect-error - injected by vue-svg-loader
 import scanGIF from "../images/scan.gif";
 
-if (!document.getElementById("__ga_grayLayout__")) {
-  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    console.log("[Content Script] Received message:", message.action, message);
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log("[Content Script] Received message:", message.action, message);
 
-    switch (message.action) {
-      case "capture":
-        sendResponse("beginCapture");
-        showGrayLayout();
-        break;
-      case "sendCaptureUrl":
-        qrDecode(
-          message.info.url,
-          message.info.captureBoxLeft,
-          message.info.captureBoxTop,
-          message.info.captureBoxWidth,
-          message.info.captureBoxHeight
-        );
-        break;
-      case "errorsecret":
-        alert(chrome.i18n.getMessage("errorsecret") + message.secret);
-        break;
-      case "errorenc":
-        alert(chrome.i18n.getMessage("phrase_incorrect"));
-        break;
-      case "added":
-        alert(message.account + chrome.i18n.getMessage("added"));
-        break;
-      case "text":
-        alert(message.text);
-        break;
-      case "migrationfail":
-        alert(chrome.i18n.getMessage("migration_fail"));
-        break;
-      case "migrationpartlyfail":
-        alert(chrome.i18n.getMessage("migration_partly_fail"));
-        break;
-      case "migrationsuccess":
-        alert(chrome.i18n.getMessage("updateSuccess"));
-        break;
-      case "pastecode":
-        pasteCode(message.code);
-        break;
-      case "fillMfaCode":
-        console.log("[Content Script] Received fillMfaCode message:", message.code);
-        fillMfaCodeToActiveInput(message.code);
-        sendResponse({ success: true });
-        break;
-      case "stopCapture": {
-        const captureBox = document.getElementById("__ga_captureBox__");
-        if (captureBox) {
-          captureBox.style.display = "none";
-        }
-
-        const grayLayout = document.getElementById("__ga_grayLayout__");
-        if (grayLayout) {
-          grayLayout.style.display = "none";
-        }
-        break;
+  switch (message.action) {
+    case "capture":
+      sendResponse("beginCapture");
+      showGrayLayout();
+      break;
+    case "sendCaptureUrl":
+      qrDecode(
+        message.info.url,
+        message.info.captureBoxLeft,
+        message.info.captureBoxTop,
+        message.info.captureBoxWidth,
+        message.info.captureBoxHeight
+      );
+      break;
+    case "errorsecret":
+      alert(chrome.i18n.getMessage("errorsecret") + message.secret);
+      break;
+    case "errorenc":
+      alert(chrome.i18n.getMessage("phrase_incorrect"));
+      break;
+    case "added":
+      alert(message.account + chrome.i18n.getMessage("added"));
+      break;
+    case "text":
+      alert(message.text);
+      break;
+    case "migrationfail":
+      alert(chrome.i18n.getMessage("migration_fail"));
+      break;
+    case "migrationpartlyfail":
+      alert(chrome.i18n.getMessage("migration_partly_fail"));
+      break;
+    case "migrationsuccess":
+      alert(chrome.i18n.getMessage("updateSuccess"));
+      break;
+    case "pastecode":
+      pasteCode(message.code);
+      break;
+    case "fillMfaCode":
+      console.log("[Content Script] Received fillMfaCode message:", message.code);
+      fillMfaCodeToActiveInput(message.code);
+      sendResponse({ success: true });
+      break;
+    case "stopCapture": {
+      const captureBox = document.getElementById("__ga_captureBox__");
+      if (captureBox) {
+        captureBox.style.display = "none";
       }
-      default:
-        // invalid command, ignore it
-        break;
-    }
 
-    // https://stackoverflow.com/a/56483156
-    return true;
-  });
-}
+      const grayLayout = document.getElementById("__ga_grayLayout__");
+      if (grayLayout) {
+        grayLayout.style.display = "none";
+      }
+      break;
+    }
+    default:
+      // invalid command, ignore it
+      break;
+  }
+
+  // https://stackoverflow.com/a/56483156
+  return true;
+});
 
 sessionStorage.setItem("captureBoxPositionLeft", "0");
 sessionStorage.setItem("captureBoxPositionTop", "0");

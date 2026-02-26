@@ -690,7 +690,6 @@ async function handleCopyMfaForDomain(tab: chrome.tabs.Tab | undefined) {
               textArea.select();
               document.execCommand("copy");
               document.body.removeChild(textArea);
-              return true;
             },
             args: [result.code || ""]
           });
