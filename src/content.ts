@@ -4,13 +4,70 @@ import jsQR from "jsqr";
 
 console.log("[Content Script] Loaded and ready to receive messages");
 console.log("[Content Script] Current URL:", window.location.href);
-console.log("[Content Script] Message listener registered");
+
+// Add unique identifier for this content script instance
+// Use a more unique ID that won't collide even on page refresh
+const contentScriptId = "cs_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+console.log("[Content Script] Message listener registered with ID:", contentScriptId);
+
+// Use window object to share processedMessages across all content script instances
+// This ensures that even if content script is injected multiple times, 
+// all instances share the same processedMessages Set
+// @ts-expect-error - dynamically added property
+if (!window.__ga_processedMessages__) {
+  // @ts-expect-error - dynamically added property
+  window.__ga_processedMessages__ = new Set<string>();
+}
+// @ts-expect-error - dynamically added property
+const processedMessages = window.__ga_processedMessages__;
+
+// Use window object to track if this instance is the primary one
+// Only the first instance will process messages
+// @ts-expect-error - dynamically added property
+if (!window.__ga_primaryInstance__) {
+  // @ts-expect-error - dynamically added property
+  window.__ga_primaryInstance__ = contentScriptId;
+}
+// @ts-expect-error - dynamically added property
+const isPrimaryInstance = window.__ga_primaryInstance__ === contentScriptId;
+console.log("[Content Script]", contentScriptId, "isPrimaryInstance:", isPrimaryInstance);
+
+// Clean up old messages after 10 seconds to prevent memory issues
+setTimeout(() => {
+  processedMessages.clear();
+}, 10000);
 
 // @ts-expect-error - injected by vue-svg-loader
 import scanGIF from "../images/scan.gif";
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log("[Content Script] Received message:", message.action, message);
+  console.log("[Content Script]", contentScriptId, "isPrimaryInstance:", isPrimaryInstance, "Received message:", message.action, message);
+
+  // Only primary instance should process messages
+  if (!isPrimaryInstance) {
+    console.log("[Content Script]", contentScriptId, "Skipping message - not primary instance");
+    sendResponse({ success: true, skipped: true });
+    return true;
+  }
+
+  // Generate unique message ID to prevent duplicates
+  // Use a combination of contentScriptId and random string to ensure uniqueness
+  const messageId = `${contentScriptId}-${message.action}-${message.code}-${Math.random().toString(36).substr(2, 9)}`;
+
+  // Skip if message has already been processed
+  if (processedMessages.has(messageId)) {
+    console.log("[Content Script]", contentScriptId, "Skipping duplicate message:", messageId);
+    sendResponse({ success: true, skipped: true });
+    return true;
+  }
+
+  // Add to processed messages
+  processedMessages.add(messageId);
+
+  // Remove old messages after 5 seconds to prevent memory issues
+  setTimeout(() => {
+    processedMessages.delete(messageId);
+  }, 5000);
 
   switch (message.action) {
     case "capture":
@@ -52,6 +109,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       break;
     case "fillMfaCode":
       console.log("[Content Script] Received fillMfaCode message:", message.code);
+      // Use requestId to prevent duplicate processing
+      if (message.requestId) {
+        const requestId = message.requestId;
+        if (processedMessages.has(requestId)) {
+          console.log("[Content Script] Skipping duplicate requestId:", requestId);
+          sendResponse({ success: true, skipped: true });
+          return true;
+        }
+        processedMessages.add(requestId);
+        // Remove requestId after 5 seconds
+        setTimeout(() => {
+          processedMessages.delete(requestId);
+        }, 5000);
+      }
       fillMfaCodeToActiveInput(message.code);
       sendResponse({ success: true });
       break;
@@ -422,14 +493,11 @@ function fillMfaCodeToActiveInput(code: string) {
     return;
   }
 
-  const start = targetElement.selectionStart ?? 0;
-  const end = targetElement.selectionEnd ?? 0;
-  const currentValue = targetElement.value;
+  // Replace entire value instead of inserting at cursor position
+  // This prevents duplicate MFA codes when clicking multiple times
+  targetElement.value = code;
 
-  const newValue = currentValue.substring(0, start) + code + currentValue.substring(end);
-  targetElement.value = newValue;
-
-  const newCursorPosition = start + code.length;
+  const newCursorPosition = code.length;
   targetElement.selectionStart = newCursorPosition;
   targetElement.selectionEnd = newCursorPosition;
 

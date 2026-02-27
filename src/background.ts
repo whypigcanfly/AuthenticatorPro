@@ -479,7 +479,7 @@ async function uploadBackup(service: string) {
 
 // Show issue page after first install
 chrome.runtime.onInstalled.addListener(async (details) => {
-  if (details.reason !== "install") {
+  if (details.reason !== "install" && details.reason !== "update") {
     return;
   } else if (await ManagedStorage.get("disableInstallHelp", false)) {
     return;
@@ -493,6 +493,18 @@ chrome.runtime.onInstalled.addListener(async (details) => {
 
   if (url) {
     chrome.tabs.create({ url, active: true });
+  }
+
+  // Initialize default settings on install or update
+  if (details.reason === "install" || details.reason === "update") {
+    await UserSettings.updateItems();
+    if (UserSettings.items.enableContextMenu === undefined) {
+      UserSettings.items.enableContextMenu = true;
+      await UserSettings.commitItems();
+      console.log("[Install] Set enableContextMenu to true by default");
+    }
+    // Update context menu after setting default value
+    updateContextMenu();
   }
 
   // https://stackoverflow.com/a/56483156
@@ -704,24 +716,42 @@ async function handleCopyMfaForDomain(tab: chrome.tabs.Tab | undefined) {
 
           console.log("[MCP Context] Sending fillMfaCode message to tab:", tab.id, "code:", result.code);
 
-          try {
-            await chrome.scripting.executeScript({
-              target: { tabId: tab.id },
-              files: ["/dist/content.js"]
-            });
-          } catch (error) {
-            console.log("[MCP Context] Content script already loaded or injection failed:", error);
-          }
+          // Generate unique request ID to prevent duplicate processing
+          const requestId = "req_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+          console.log("[MCP Context] Request ID:", requestId);
 
-          chrome.tabs.sendMessage(tab.id, {
-            action: "fillMfaCode",
-            code: result.code
-          }, (response) => {
-            console.log("[MCP Context] Message response:", response);
-            if (chrome.runtime.lastError) {
-              console.error("[MCP Context] Message error:", chrome.runtime.lastError);
-            }
-          });
+          if (tab.id) {
+            chrome.tabs.sendMessage(tab.id, {
+              action: "fillMfaCode",
+              code: result.code,
+              requestId: requestId
+            }, (response) => {
+              console.log("[MCP Context] Message response:", response);
+              if (chrome.runtime.lastError) {
+                console.error("[MCP Context] Message error:", chrome.runtime.lastError);
+                // Only inject content script if it's not already loaded
+                try {
+                  chrome.scripting.executeScript({
+                    target: { tabId: tab.id! },
+                    files: ["/dist/content.js"]
+                  }).then(() => {
+                    // Try sending the message again after injection
+                    if (tab.id) {
+                      chrome.tabs.sendMessage(tab.id, {
+                        action: "fillMfaCode",
+                        code: result.code,
+                        requestId: requestId
+                      }, (response) => {
+                        console.log("[MCP Context] Message response after injection:", response);
+                      });
+                    }
+                  });
+                } catch (error) {
+                  console.error("[MCP Context] Content script injection failed:", error);
+                }
+              }
+            });
+          }
         } catch (error) {
           console.error("[MCP Context] Clipboard error:", error);
           chrome.notifications.create({
@@ -756,3 +786,17 @@ async function handleCopyMfaForDomain(tab: chrome.tabs.Tab | undefined) {
 }
 
 updateContextMenu();
+
+chrome.permissions.onAdded.addListener((permissions) => {
+  if (permissions.permissions && permissions.permissions.includes("contextMenus")) {
+    console.log("[Permissions] contextMenus permission granted");
+    updateContextMenu();
+  }
+});
+
+chrome.permissions.onRemoved.addListener((permissions) => {
+  if (permissions.permissions && permissions.permissions.includes("contextMenus")) {
+    console.log("[Permissions] contextMenus permission revoked");
+    chrome.contextMenus.removeAll();
+  }
+});

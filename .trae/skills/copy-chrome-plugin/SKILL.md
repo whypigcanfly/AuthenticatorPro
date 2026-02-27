@@ -1,74 +1,37 @@
 ---
 name: "copy-chrome-plugin"
-description: "Copies built Chrome extension to specified deployment location. Invoke after webpack compilation completes or when user asks to deploy the plugin."
+description: "Copies built Chrome extension to E:\chromeplugin\chrome directory. Invoke after webpack compilation completes or when user requests to deploy the plugin."
 ---
 
-# Copy Chrome Plugin
+# Copy Chrome Plugin to Deployment Directory
 
-This skill copies the built Chrome extension directory to a specified deployment location.
+This skill copies built Chrome extension files to deployment directory `E:\chromeplugin\chrome` after the build process completes.
 
 ## When to Use
 
-Invoke this skill when:
-- Webpack compilation has completed successfully
-- The `chrome` directory has been built/updated
-- User requests to deploy or copy the plugin to a target location
-- After running build commands like `npm run chrome` or webpack
+Invoke this skill automatically after:
+- Webpack compilation completes successfully
+- User asks to deploy the plugin
+- User requests to copy build artifacts to deployment location
 
 ## What It Does
 
-1. Checks if the source `chrome` directory exists in the project root
-2. Checks if the target directory exists
-3. If the target directory exists, deletes it first
-4. Copies the entire `chrome` directory to the target location
+1. Removes existing `E:\chromeplugin\chrome` directory (if exists)
+2. Creates new `E:\chromeplugin\chrome` directory
+3. Copies all necessary files from the build output to the deployment directory
 
-## Usage
+## Prerequisites
 
-After building the Chrome extension:
+- Webpack build must complete successfully
+- `chrome/` directory must exist with all build artifacts
+- Target directory `E:\chromeplugin\chrome` must be accessible
 
-```bash
-# Build the extension
-npx webpack --config webpack.config.js
-npx sass sass:css
+## Error Handling
 
-# Then invoke this skill to copy to deployment location
-```
+If the target directory `E:\chromeplugin\chrome` does not exist or is not accessible, the skill will log an error message.
 
-The skill will automatically:
-- Verify the source directory exists
-- Remove the old deployment if present
-- Copy the fresh build to the target location
+## Notes
 
-## Configuration
-
-By default, this skill copies to `E:\chromeplugin`. To change the target location, modify the target path in the skill implementation.
-
-**Note**: Due to security restrictions, the target path must be within the allowed paths. If you need to copy to E:\chromeplugin, you may need to:
-1. Manually copy the directory using file explorer
-2. Add E:\chromeplugin to the allowed paths in your environment configuration
-3. Use a different target location within the allowed paths
-
-## Requirements
-
-- The `chrome` directory must exist in the project root
-- The target path must be accessible and within allowed paths
-- Write permissions to the target location
-
-## Implementation
-
-The skill uses PowerShell commands to:
-- Check source exists: `Test-Path chrome`
-- Remove existing directory: `Remove-Item -Recurse -Force <target-path>`
-- Copy new directory: `Copy-Item -Recurse chrome <target-path>`
-
-## Example Commands
-
-```powershell
-# Copy to E:\chromeplugin (if allowed)
-if (Test-Path E:\chromeplugin) { Remove-Item -Recurse -Force E:\chromeplugin }
-Copy-Item -Recurse chrome E:\chromeplugin
-
-# Copy to alternative location within project
-if (Test-Path .\deploy) { Remove-Item -Recurse -Force .\deploy }
-Copy-Item -Recurse chrome .\deploy
-```
+- Existing files in `E:\chromeplugin\chrome` will be overwritten
+- This is useful for quick deployment to a local Chrome extension directory
+- Select `E:\chromeplugin\chrome` when loading the extension in Chrome
