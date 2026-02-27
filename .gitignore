@@ -14,3 +14,13 @@ view/licenses.html
 ./test
 scripts/authenticator-build-key
 scripts/test-runner.js
+
+# Trae IDE local config
+.trae/
+
+# Local test scripts
+test-mcp.js
+verify-mcp.js
+
+# Backup directories
+images/bak/
