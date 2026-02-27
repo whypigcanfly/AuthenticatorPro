@@ -703,6 +703,16 @@ async function handleCopyMfaForDomain(tab: chrome.tabs.Tab | undefined) {
           });
 
           console.log("[MCP Context] Sending fillMfaCode message to tab:", tab.id, "code:", result.code);
+
+          try {
+            await chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              files: ["/dist/content.js"]
+            });
+          } catch (error) {
+            console.log("[MCP Context] Content script already loaded or injection failed:", error);
+          }
+
           chrome.tabs.sendMessage(tab.id, {
             action: "fillMfaCode",
             code: result.code
