@@ -1,3 +1,5 @@
+# 该项目是针对 Authenticator 项目的二开，增加了自动填充等功能。我不懂代码，二开完全使用trae依赖AI完成。如有问题，请大家自行修复。
+
 # Authenticator [![Build Status](https://travis-ci.com/Authenticator-Extension/Authenticator.svg?branch=dev)](https://travis-ci.com/Authenticator-Extension/Authenticator) [![Crowdin](https://d322cqt584bo4o.cloudfront.net/authenticator-firefox/localized.svg)](https://crowdin.com/project/authenticator-firefox) <img align="right" width="100" height="100" src="https://github.com/Authenticator-Extension/Authenticator/raw/dev/images/icon.svg">
 
 > Authenticator generates 2-Step Verification codes in your browser.
