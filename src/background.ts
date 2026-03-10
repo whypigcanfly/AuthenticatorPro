@@ -68,7 +68,10 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
  * @param message 包含域名和可选认证信息的消息
  * @param sendResponse 发送响应的回调函数
  */
-async function handleMcpRequest(message: any, sendResponse: (response?: any) => void) {
+async function handleMcpRequest(
+  message: any,
+  sendResponse: (response?: any) => void
+) {
   try {
     console.log("[MCP] handleMcpRequest called with:", message);
     const { domain, passphrase, keyId } = message;
@@ -77,14 +80,17 @@ async function handleMcpRequest(message: any, sendResponse: (response?: any) => 
       console.log("[MCP] Domain is required");
       sendResponse({
         success: false,
-        error: "Domain is required"
+        error: "Domain is required",
       });
       return;
     }
 
     console.log("[MCP] Getting cached passphrase...");
     // 获取缓存的密码短语（如果有）
-    const { cachedPassphrase, cachedKeyId } = await chrome.storage.session.get();
+    const {
+      cachedPassphrase,
+      cachedKeyId,
+    } = await chrome.storage.session.get();
     const finalPassphrase = passphrase || cachedPassphrase;
     const finalKeyId = keyId || cachedKeyId;
 
@@ -99,7 +105,7 @@ async function handleMcpRequest(message: any, sendResponse: (response?: any) => 
     console.error("MCP request handling error:", error);
     sendResponse({
       success: false,
-      error: "Internal error handling MCP request"
+      error: "Internal error handling MCP request",
     });
   }
 }
@@ -330,9 +336,11 @@ function getBackupToken(service: string) {
         redirUrl;
     } else if (service === "onedrive") {
       redirUrl = encodeURIComponent(chrome.identity.getRedirectURL());
-      authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${getCredentials().onedrive.client_id
-        }&response_type=code&redirect_uri=${redirUrl}&scope=https%3A%2F%2Fgraph.microsoft.com%2FFiles.ReadWrite${UserSettings.items.oneDriveBusiness !== true ? ".AppFolder" : ""
-        }%20https%3A%2F%2Fgraph.microsoft.com%2FUser.Read%20offline_access&response_mode=query&prompt=consent`;
+      authUrl = `https://login.microsoftonline.com/common/oauth2/v2.0/authorize?client_id=${
+        getCredentials().onedrive.client_id
+      }&response_type=code&redirect_uri=${redirUrl}&scope=https%3A%2F%2Fgraph.microsoft.com%2FFiles.ReadWrite${
+        UserSettings.items.oneDriveBusiness !== true ? ".AppFolder" : ""
+      }%20https%3A%2F%2Fgraph.microsoft.com%2FUser.Read%20offline_access&response_mode=query&prompt=consent`;
     }
     chrome.identity.launchWebAuthFlow(
       { url: authUrl, interactive: true },
@@ -376,14 +384,14 @@ function getBackupToken(service: string) {
 
                 const response = await fetch(
                   "https://www.googleapis.com/oauth2/v4/token?client_id=" +
-                  getCredentials().drive.client_id +
-                  "&client_secret=" +
-                  getCredentials().drive.client_secret +
-                  "&code=" +
-                  value +
-                  "&redirect_uri=" +
-                  redirUrl +
-                  "&grant_type=authorization_code",
+                    getCredentials().drive.client_id +
+                    "&client_secret=" +
+                    getCredentials().drive.client_secret +
+                    "&code=" +
+                    value +
+                    "&redirect_uri=" +
+                    redirUrl +
+                    "&grant_type=authorization_code",
                   {
                     method: "POST",
                     headers: {
@@ -703,7 +711,7 @@ async function handleCopyMfaForDomain(tab: chrome.tabs.Tab | undefined) {
               document.execCommand("copy");
               document.body.removeChild(textArea);
             },
-            args: [result.code || ""]
+            args: [result.code || ""],
           });
 
           chrome.notifications.create({
@@ -711,46 +719,71 @@ async function handleCopyMfaForDomain(tab: chrome.tabs.Tab | undefined) {
             iconUrl: chrome.runtime.getURL("images/icon128.png"),
             title: chrome.i18n.getMessage("extName"),
             message: chrome.i18n.getMessage("mfaCopied"),
-            priority: 2
+            priority: 2,
           });
 
-          console.log("[MCP Context] Sending fillMfaCode message to tab:", tab.id, "code:", result.code);
+          console.log(
+            "[MCP Context] Sending fillMfaCode message to tab:",
+            tab.id,
+            "code:",
+            result.code
+          );
 
           // Generate unique request ID to prevent duplicate processing
-          const requestId = "req_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+          const requestId =
+            "req_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
           console.log("[MCP Context] Request ID:", requestId);
 
           if (tab.id) {
-            chrome.tabs.sendMessage(tab.id, {
-              action: "fillMfaCode",
-              code: result.code,
-              requestId: requestId
-            }, (response) => {
-              console.log("[MCP Context] Message response:", response);
-              if (chrome.runtime.lastError) {
-                console.error("[MCP Context] Message error:", chrome.runtime.lastError);
-                // Only inject content script if it's not already loaded
-                try {
-                  chrome.scripting.executeScript({
-                    target: { tabId: tab.id! },
-                    files: ["/dist/content.js"]
-                  }).then(() => {
-                    // Try sending the message again after injection
-                    if (tab.id) {
-                      chrome.tabs.sendMessage(tab.id, {
-                        action: "fillMfaCode",
-                        code: result.code,
-                        requestId: requestId
-                      }, (response) => {
-                        console.log("[MCP Context] Message response after injection:", response);
+            chrome.tabs.sendMessage(
+              tab.id,
+              {
+                action: "fillMfaCode",
+                code: result.code,
+                requestId: requestId,
+              },
+              (response) => {
+                console.log("[MCP Context] Message response:", response);
+                if (chrome.runtime.lastError) {
+                  console.error(
+                    "[MCP Context] Message error:",
+                    chrome.runtime.lastError
+                  );
+                  // Only inject content script if it's not already loaded
+                  try {
+                    chrome.scripting
+                      .executeScript({
+                        target: { tabId: tab.id! },
+                        files: ["/dist/content.js"],
+                      })
+                      .then(() => {
+                        // Try sending the message again after injection
+                        if (tab.id) {
+                          chrome.tabs.sendMessage(
+                            tab.id,
+                            {
+                              action: "fillMfaCode",
+                              code: result.code,
+                              requestId: requestId,
+                            },
+                            (response) => {
+                              console.log(
+                                "[MCP Context] Message response after injection:",
+                                response
+                              );
+                            }
+                          );
+                        }
                       });
-                    }
-                  });
-                } catch (error) {
-                  console.error("[MCP Context] Content script injection failed:", error);
+                  } catch (error) {
+                    console.error(
+                      "[MCP Context] Content script injection failed:",
+                      error
+                    );
+                  }
                 }
               }
-            });
+            );
           }
         } catch (error) {
           console.error("[MCP Context] Clipboard error:", error);
@@ -759,7 +792,7 @@ async function handleCopyMfaForDomain(tab: chrome.tabs.Tab | undefined) {
             iconUrl: chrome.runtime.getURL("images/icon128.png"),
             title: chrome.i18n.getMessage("extName"),
             message: chrome.i18n.getMessage("mfaFetchError"),
-            priority: 2
+            priority: 2,
           });
         }
       }
@@ -770,7 +803,7 @@ async function handleCopyMfaForDomain(tab: chrome.tabs.Tab | undefined) {
         iconUrl: chrome.runtime.getURL("images/icon128.png"),
         title: chrome.i18n.getMessage("extName"),
         message: chrome.i18n.getMessage("noMfaFound"),
-        priority: 2
+        priority: 2,
       });
     }
   } catch (error) {
@@ -780,22 +813,33 @@ async function handleCopyMfaForDomain(tab: chrome.tabs.Tab | undefined) {
       iconUrl: chrome.runtime.getURL("images/icon128.png"),
       title: chrome.i18n.getMessage("extName"),
       message: chrome.i18n.getMessage("mfaFetchError"),
-      priority: 2
+      priority: 2,
     });
   }
 }
 
-updateContextMenu();
+// Service Worker 重启后需要先加载用户设置，再更新右键菜单
+// 否则 UserSettings.items 为空对象，导致 enableContextMenu 为 undefined
+(async () => {
+  await UserSettings.updateItems();
+  updateContextMenu();
+})();
 
 chrome.permissions.onAdded.addListener((permissions) => {
-  if (permissions.permissions && permissions.permissions.includes("contextMenus")) {
+  if (
+    permissions.permissions &&
+    permissions.permissions.includes("contextMenus")
+  ) {
     console.log("[Permissions] contextMenus permission granted");
     updateContextMenu();
   }
 });
 
 chrome.permissions.onRemoved.addListener((permissions) => {
-  if (permissions.permissions && permissions.permissions.includes("contextMenus")) {
+  if (
+    permissions.permissions &&
+    permissions.permissions.includes("contextMenus")
+  ) {
     console.log("[Permissions] contextMenus permission revoked");
     chrome.contextMenus.removeAll();
   }
