@@ -69,8 +69,12 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
  * @param sendResponse 发送响应的回调函数
  */
 async function handleMcpRequest(
-  message: any,
-  sendResponse: (response?: any) => void
+  message: { domain: string; passphrase?: string; keyId?: string },
+  sendResponse: (response?: {
+    success: boolean;
+    error?: string;
+    code?: string;
+  }) => void
 ) {
   try {
     console.log("[MCP] handleMcpRequest called with:", message);
