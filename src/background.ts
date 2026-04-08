@@ -697,6 +697,13 @@ async function handleCopyMfaForDomain(tab: chrome.tabs.Tab | undefined) {
 
       if (tab && tab.id) {
         try {
+          // 1. 确保内容脚本已注入
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ["/dist/content.js"],
+          });
+
+          // 2. 复制到剪贴板
           await chrome.scripting.executeScript({
             target: { tabId: tab.id },
             func: (code: string) => {
@@ -729,11 +736,12 @@ async function handleCopyMfaForDomain(tab: chrome.tabs.Tab | undefined) {
             result.code
           );
 
-          // Generate unique request ID to prevent duplicate processing
+          // 3. 生成唯一请求ID以防止重复处理
           const requestId =
             "req_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
           console.log("[MCP Context] Request ID:", requestId);
 
+          // 4. 发送消息填写验证码
           if (tab.id) {
             chrome.tabs.sendMessage(
               tab.id,
@@ -749,44 +757,12 @@ async function handleCopyMfaForDomain(tab: chrome.tabs.Tab | undefined) {
                     "[MCP Context] Message error:",
                     chrome.runtime.lastError
                   );
-                  // Only inject content script if it's not already loaded
-                  try {
-                    chrome.scripting
-                      .executeScript({
-                        target: { tabId: tab.id! },
-                        files: ["/dist/content.js"],
-                      })
-                      .then(() => {
-                        // Try sending the message again after injection
-                        if (tab.id) {
-                          chrome.tabs.sendMessage(
-                            tab.id,
-                            {
-                              action: "fillMfaCode",
-                              code: result.code,
-                              requestId: requestId,
-                            },
-                            (response) => {
-                              console.log(
-                                "[MCP Context] Message response after injection:",
-                                response
-                              );
-                            }
-                          );
-                        }
-                      });
-                  } catch (error) {
-                    console.error(
-                      "[MCP Context] Content script injection failed:",
-                      error
-                    );
-                  }
                 }
               }
             );
           }
         } catch (error) {
-          console.error("[MCP Context] Clipboard error:", error);
+          console.error("[MCP Context] Error:", error);
           chrome.notifications.create({
             type: "basic",
             iconUrl: chrome.runtime.getURL("images/icon128.png"),

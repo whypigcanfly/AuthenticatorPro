@@ -473,6 +473,40 @@ function fillMfaCodeToActiveInput(code: string) {
   }
 
   if (!targetElement) {
+    // First try to find MFA-related input fields by name or id
+    const inputElements = Array.from(document.querySelectorAll('input:not([readonly]):not([disabled]), textarea:not([readonly]):not([disabled])'));
+    const identities = [
+      "2fa",
+      "otp",
+      "authenticator",
+      "factor",
+      "code",
+      "totp",
+      "twoFactorCode",
+    ];
+
+    for (const element of inputElements) {
+      const input = element as HTMLInputElement | HTMLTextAreaElement;
+      const rect = input.getBoundingClientRect();
+      const isVisible = rect.width > 0 && rect.height > 0;
+
+      if (isVisible) {
+        for (const identity of identities) {
+          if (
+            input.name.toLowerCase().indexOf(identity) >= 0 ||
+            input.id.toLowerCase().indexOf(identity) >= 0
+          ) {
+            targetElement = input;
+            break;
+          }
+        }
+        if (targetElement) break;
+      }
+    }
+  }
+
+  if (!targetElement) {
+    // If no MFA-related input found, try to find any visible input
     const inputElements = Array.from(document.querySelectorAll('input:not([readonly]):not([disabled]), textarea:not([readonly]):not([disabled])'));
 
     for (const element of inputElements) {
