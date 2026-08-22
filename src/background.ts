@@ -16,7 +16,40 @@ import { UserSettings } from "./models/settings";
 import { getMfaForDomain } from "./mcp";
 
 let contentTab: chrome.tabs.Tab | undefined;
-let contextMenuListenerAdded = false;
+
+// MV3 下 Service Worker 会被休眠，唤醒事件只会派发给启动时同步注册的监听器，
+// 因此 contextMenus.onClicked 必须在顶层同步注册，否则休眠后的首次点击会被丢弃
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  await UserSettings.updateItems();
+  if (UserSettings.items.enableContextMenu !== true) {
+    return;
+  }
+
+  if (info.menuItemId === "copyMfaForDomain") {
+    handleCopyMfaForDomain(tab);
+  } else {
+    let popupUrl = "view/popup.html?popup=true";
+    if (tab && tab.url && tab.title) {
+      popupUrl +=
+        "&url=" +
+        encodeURIComponent(tab.url) +
+        "&title=" +
+        encodeURIComponent(tab.title);
+    }
+    let windowType;
+    if (isFirefox) {
+      windowType = "detached_panel";
+    } else {
+      windowType = "panel";
+    }
+    chrome.windows.create({
+      url: chrome.runtime.getURL(popupUrl),
+      type: windowType as chrome.windows.createTypeEnum,
+      height: 400,
+      width: 320,
+    });
+  }
+});
 
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   await UserSettings.updateItems();
@@ -635,39 +668,6 @@ async function updateContextMenu() {
             title: chrome.i18n.getMessage("copyMfaForDomain"),
             contexts: ["all"],
           });
-
-          if (!contextMenuListenerAdded) {
-            chrome.contextMenus.onClicked.addListener((info, tab) => {
-              if (info.menuItemId === "copyMfaForDomain") {
-                handleCopyMfaForDomain(tab);
-              } else {
-                let popupUrl = "view/popup.html?popup=true";
-                if (tab && tab.url && tab.title) {
-                  popupUrl +=
-                    "&url=" +
-                    encodeURIComponent(tab.url) +
-                    "&title=" +
-                    encodeURIComponent(tab.title);
-                }
-                let windowType;
-                if (isFirefox) {
-                  windowType = "detached_panel";
-                } else {
-                  windowType = "panel";
-                }
-                chrome.windows.create({
-                  url: chrome.runtime.getURL(popupUrl),
-                  type: windowType as chrome.windows.createTypeEnum,
-                  height: 400,
-                  width: 320,
-                });
-              }
-
-              // https://stackoverflow.com/a/56483156
-              return true;
-            });
-            contextMenuListenerAdded = true;
-          }
         } else {
           chrome.contextMenus.removeAll();
         }
@@ -694,7 +694,12 @@ async function handleCopyMfaForDomain(tab: chrome.tabs.Tab | undefined) {
 
     console.log("[MCP Context] Extracted domain:", domain);
 
-    const result = await getMfaForDomain(domain);
+    // SW 重启后内存缓存丢失，从 session storage 读取缓存的密码短语
+    const {
+      cachedPassphrase,
+      cachedKeyId,
+    } = await chrome.storage.session.get();
+    const result = await getMfaForDomain(domain, cachedPassphrase, cachedKeyId);
 
     if (result.success && result.code) {
       console.log("[MCP Context] MFA code found:", result.code);

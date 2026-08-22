@@ -9,3 +9,5 @@ webpack.dev.js
 webpack.watch.js
 src/test
 src/models/credentials.ts
+test-mcp.js
+verify-mcp.js

@@ -14,7 +14,9 @@ describe("MCP功能测试", () => {
     });
 
     it("应该正确解析多级域名", () => {
-      expect(extractSiteNameFromDomain("subdomain.example.com")).to.equal("example");
+      expect(extractSiteNameFromDomain("subdomain.example.com")).to.equal(
+        "example"
+      );
     });
 
     it("应该正确解析带路径的域名", () => {
@@ -26,7 +28,9 @@ describe("MCP功能测试", () => {
     });
 
     it("应该正确解析带协议的域名", () => {
-      expect(extractSiteNameFromDomain("https://example.com")).to.equal("example");
+      expect(extractSiteNameFromDomain("https://example.com")).to.equal(
+        "example"
+      );
     });
 
     it("应该正确解析特殊二级域名", () => {
