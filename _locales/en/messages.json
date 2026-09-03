@@ -522,7 +522,7 @@
     "message": "Warning: Smart filter loosely matches the domain name to an account. Always verify that you are on the correct website before entering a code!"
   },
   "copyMfaForDomain": {
-    "message": "Copy MFA for current domain",
+    "message": "Copy Past MFA",
     "description": "Context menu item title"
   },
   "mfaCopied": {
