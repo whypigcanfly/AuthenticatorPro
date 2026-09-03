@@ -658,14 +658,15 @@ async function updateContextMenu() {
       if (result) {
         if (UserSettings.items.enableContextMenu === true) {
           chrome.contextMenus.removeAll();
-          chrome.contextMenus.create({
-            id: "otpContextMenu",
-            title: chrome.i18n.getMessage("extName"),
-            contexts: ["all"],
-          });
+          // copyMfaForDomain 提到一级菜单，不再挂在 otpContextMenu 下
           chrome.contextMenus.create({
             id: "copyMfaForDomain",
             title: chrome.i18n.getMessage("copyMfaForDomain"),
+            contexts: ["all"],
+          });
+          chrome.contextMenus.create({
+            id: "otpContextMenu",
+            title: chrome.i18n.getMessage("extName"),
             contexts: ["all"],
           });
         } else {
