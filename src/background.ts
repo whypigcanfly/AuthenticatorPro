@@ -658,15 +658,11 @@ async function updateContextMenu() {
       if (result) {
         if (UserSettings.items.enableContextMenu === true) {
           chrome.contextMenus.removeAll();
-          // copyMfaForDomain 提到一级菜单，不再挂在 otpContextMenu 下
+          // Chrome 会把扩展的多个顶层菜单项自动分组进扩展名父菜单，
+          // 因此只创建 copyMfaForDomain 这一个顶层项，右键才能直接显示
           chrome.contextMenus.create({
             id: "copyMfaForDomain",
             title: chrome.i18n.getMessage("copyMfaForDomain"),
-            contexts: ["all"],
-          });
-          chrome.contextMenus.create({
-            id: "otpContextMenu",
-            title: chrome.i18n.getMessage("extName"),
             contexts: ["all"],
           });
         } else {
