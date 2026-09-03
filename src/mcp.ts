@@ -24,7 +24,7 @@ export async function getMfaForDomain(
     console.error("MCP API error:", error);
     return {
       success: false,
-      error: "Internal API error"
+      error: "Internal API error",
     };
   }
 }
@@ -52,7 +52,7 @@ export async function getMfaForDomains(
       console.error(`MCP API error for domain ${domain}:`, error);
       results.set(domain, {
         success: false,
-        error: "Internal API error"
+        error: "Internal API error",
       });
     }
   }

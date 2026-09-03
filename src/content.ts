@@ -7,11 +7,15 @@ console.log("[Content Script] Current URL:", window.location.href);
 
 // Add unique identifier for this content script instance
 // Use a more unique ID that won't collide even on page refresh
-const contentScriptId = "cs_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
-console.log("[Content Script] Message listener registered with ID:", contentScriptId);
+const contentScriptId =
+  "cs_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
+console.log(
+  "[Content Script] Message listener registered with ID:",
+  contentScriptId
+);
 
 // Use window object to share processedMessages across all content script instances
-// This ensures that even if content script is injected multiple times, 
+// This ensures that even if content script is injected multiple times,
 // all instances share the same processedMessages Set
 // @ts-expect-error - dynamically added property
 if (!window.__ga_processedMessages__) {
@@ -30,7 +34,12 @@ if (!window.__ga_primaryInstance__) {
 }
 // @ts-expect-error - dynamically added property
 const isPrimaryInstance = window.__ga_primaryInstance__ === contentScriptId;
-console.log("[Content Script]", contentScriptId, "isPrimaryInstance:", isPrimaryInstance);
+console.log(
+  "[Content Script]",
+  contentScriptId,
+  "isPrimaryInstance:",
+  isPrimaryInstance
+);
 
 // Clean up old messages after 10 seconds to prevent memory issues
 setTimeout(() => {
@@ -41,22 +50,41 @@ setTimeout(() => {
 import scanGIF from "../images/scan.gif";
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  console.log("[Content Script]", contentScriptId, "isPrimaryInstance:", isPrimaryInstance, "Received message:", message.action, message);
+  console.log(
+    "[Content Script]",
+    contentScriptId,
+    "isPrimaryInstance:",
+    isPrimaryInstance,
+    "Received message:",
+    message.action,
+    message
+  );
 
   // Only primary instance should process messages
   if (!isPrimaryInstance) {
-    console.log("[Content Script]", contentScriptId, "Skipping message - not primary instance");
+    console.log(
+      "[Content Script]",
+      contentScriptId,
+      "Skipping message - not primary instance"
+    );
     sendResponse({ success: true, skipped: true });
     return true;
   }
 
   // Generate unique message ID to prevent duplicates
   // Use a combination of contentScriptId and random string to ensure uniqueness
-  const messageId = `${contentScriptId}-${message.action}-${message.code}-${Math.random().toString(36).substr(2, 9)}`;
+  const messageId = `${contentScriptId}-${message.action}-${
+    message.code
+  }-${Math.random().toString(36).substr(2, 9)}`;
 
   // Skip if message has already been processed
   if (processedMessages.has(messageId)) {
-    console.log("[Content Script]", contentScriptId, "Skipping duplicate message:", messageId);
+    console.log(
+      "[Content Script]",
+      contentScriptId,
+      "Skipping duplicate message:",
+      messageId
+    );
     sendResponse({ success: true, skipped: true });
     return true;
   }
@@ -108,12 +136,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       pasteCode(message.code);
       break;
     case "fillMfaCode":
-      console.log("[Content Script] Received fillMfaCode message:", message.code);
+      console.log(
+        "[Content Script] Received fillMfaCode message:",
+        message.code
+      );
       // Use requestId to prevent duplicate processing
       if (message.requestId) {
         const requestId = message.requestId;
         if (processedMessages.has(requestId)) {
-          console.log("[Content Script] Skipping duplicate requestId:", requestId);
+          console.log(
+            "[Content Script] Skipping duplicate requestId:",
+            requestId
+          );
           sendResponse({ success: true, skipped: true });
           return true;
         }
@@ -458,7 +492,9 @@ window.onkeydown = (event: KeyboardEvent) => {
 };
 
 function fillMfaCodeToActiveInput(code: string) {
-  const activeElement = document.activeElement as HTMLInputElement | HTMLTextAreaElement;
+  const activeElement = document.activeElement as
+    | HTMLInputElement
+    | HTMLTextAreaElement;
 
   let targetElement: HTMLInputElement | HTMLTextAreaElement | null = null;
 
@@ -473,7 +509,49 @@ function fillMfaCodeToActiveInput(code: string) {
   }
 
   if (!targetElement) {
-    const inputElements = Array.from(document.querySelectorAll('input:not([readonly]):not([disabled]), textarea:not([readonly]):not([disabled])'));
+    // First try to find MFA-related input fields by name or id
+    const inputElements = Array.from(
+      document.querySelectorAll(
+        "input:not([readonly]):not([disabled]), textarea:not([readonly]):not([disabled])"
+      )
+    );
+    const identities = [
+      "2fa",
+      "otp",
+      "authenticator",
+      "factor",
+      "code",
+      "totp",
+      "twoFactorCode",
+    ];
+
+    for (const element of inputElements) {
+      const input = element as HTMLInputElement | HTMLTextAreaElement;
+      const rect = input.getBoundingClientRect();
+      const isVisible = rect.width > 0 && rect.height > 0;
+
+      if (isVisible) {
+        for (const identity of identities) {
+          if (
+            input.name.toLowerCase().indexOf(identity) >= 0 ||
+            input.id.toLowerCase().indexOf(identity) >= 0
+          ) {
+            targetElement = input;
+            break;
+          }
+        }
+        if (targetElement) break;
+      }
+    }
+  }
+
+  if (!targetElement) {
+    // If no MFA-related input found, try to find any visible input
+    const inputElements = Array.from(
+      document.querySelectorAll(
+        "input:not([readonly]):not([disabled]), textarea:not([readonly]):not([disabled])"
+      )
+    );
 
     for (const element of inputElements) {
       const input = element as HTMLInputElement | HTMLTextAreaElement;

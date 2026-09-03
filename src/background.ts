@@ -16,7 +16,40 @@ import { UserSettings } from "./models/settings";
 import { getMfaForDomain } from "./mcp";
 
 let contentTab: chrome.tabs.Tab | undefined;
-let contextMenuListenerAdded = false;
+
+// MV3 下 Service Worker 会被休眠，唤醒事件只会派发给启动时同步注册的监听器，
+// 因此 contextMenus.onClicked 必须在顶层同步注册，否则休眠后的首次点击会被丢弃
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  await UserSettings.updateItems();
+  if (UserSettings.items.enableContextMenu !== true) {
+    return;
+  }
+
+  if (info.menuItemId === "copyMfaForDomain") {
+    handleCopyMfaForDomain(tab);
+  } else {
+    let popupUrl = "view/popup.html?popup=true";
+    if (tab && tab.url && tab.title) {
+      popupUrl +=
+        "&url=" +
+        encodeURIComponent(tab.url) +
+        "&title=" +
+        encodeURIComponent(tab.title);
+    }
+    let windowType;
+    if (isFirefox) {
+      windowType = "detached_panel";
+    } else {
+      windowType = "panel";
+    }
+    chrome.windows.create({
+      url: chrome.runtime.getURL(popupUrl),
+      type: windowType as chrome.windows.createTypeEnum,
+      height: 400,
+      width: 320,
+    });
+  }
+});
 
 chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
   await UserSettings.updateItems();
@@ -69,8 +102,12 @@ chrome.runtime.onMessage.addListener(async (message, sender, sendResponse) => {
  * @param sendResponse 发送响应的回调函数
  */
 async function handleMcpRequest(
-  message: any,
-  sendResponse: (response?: any) => void
+  message: { domain: string; passphrase?: string; keyId?: string },
+  sendResponse: (response?: {
+    success: boolean;
+    error?: string;
+    code?: string;
+  }) => void
 ) {
   try {
     console.log("[MCP] handleMcpRequest called with:", message);
@@ -631,39 +668,6 @@ async function updateContextMenu() {
             title: chrome.i18n.getMessage("copyMfaForDomain"),
             contexts: ["all"],
           });
-
-          if (!contextMenuListenerAdded) {
-            chrome.contextMenus.onClicked.addListener((info, tab) => {
-              if (info.menuItemId === "copyMfaForDomain") {
-                handleCopyMfaForDomain(tab);
-              } else {
-                let popupUrl = "view/popup.html?popup=true";
-                if (tab && tab.url && tab.title) {
-                  popupUrl +=
-                    "&url=" +
-                    encodeURIComponent(tab.url) +
-                    "&title=" +
-                    encodeURIComponent(tab.title);
-                }
-                let windowType;
-                if (isFirefox) {
-                  windowType = "detached_panel";
-                } else {
-                  windowType = "panel";
-                }
-                chrome.windows.create({
-                  url: chrome.runtime.getURL(popupUrl),
-                  type: windowType as chrome.windows.createTypeEnum,
-                  height: 400,
-                  width: 320,
-                });
-              }
-
-              // https://stackoverflow.com/a/56483156
-              return true;
-            });
-            contextMenuListenerAdded = true;
-          }
         } else {
           chrome.contextMenus.removeAll();
         }
@@ -690,13 +694,25 @@ async function handleCopyMfaForDomain(tab: chrome.tabs.Tab | undefined) {
 
     console.log("[MCP Context] Extracted domain:", domain);
 
-    const result = await getMfaForDomain(domain);
+    // SW 重启后内存缓存丢失，从 session storage 读取缓存的密码短语
+    const {
+      cachedPassphrase,
+      cachedKeyId,
+    } = await chrome.storage.session.get();
+    const result = await getMfaForDomain(domain, cachedPassphrase, cachedKeyId);
 
     if (result.success && result.code) {
       console.log("[MCP Context] MFA code found:", result.code);
 
       if (tab && tab.id) {
         try {
+          // 1. 确保内容脚本已注入
+          await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            files: ["/dist/content.js"],
+          });
+
+          // 2. 复制到剪贴板
           await chrome.scripting.executeScript({
             target: { tabId: tab.id },
             func: (code: string) => {
@@ -729,11 +745,12 @@ async function handleCopyMfaForDomain(tab: chrome.tabs.Tab | undefined) {
             result.code
           );
 
-          // Generate unique request ID to prevent duplicate processing
+          // 3. 生成唯一请求ID以防止重复处理
           const requestId =
             "req_" + Date.now() + "_" + Math.random().toString(36).substr(2, 9);
           console.log("[MCP Context] Request ID:", requestId);
 
+          // 4. 发送消息填写验证码
           if (tab.id) {
             chrome.tabs.sendMessage(
               tab.id,
@@ -749,44 +766,12 @@ async function handleCopyMfaForDomain(tab: chrome.tabs.Tab | undefined) {
                     "[MCP Context] Message error:",
                     chrome.runtime.lastError
                   );
-                  // Only inject content script if it's not already loaded
-                  try {
-                    chrome.scripting
-                      .executeScript({
-                        target: { tabId: tab.id! },
-                        files: ["/dist/content.js"],
-                      })
-                      .then(() => {
-                        // Try sending the message again after injection
-                        if (tab.id) {
-                          chrome.tabs.sendMessage(
-                            tab.id,
-                            {
-                              action: "fillMfaCode",
-                              code: result.code,
-                              requestId: requestId,
-                            },
-                            (response) => {
-                              console.log(
-                                "[MCP Context] Message response after injection:",
-                                response
-                              );
-                            }
-                          );
-                        }
-                      });
-                  } catch (error) {
-                    console.error(
-                      "[MCP Context] Content script injection failed:",
-                      error
-                    );
-                  }
                 }
               }
             );
           }
         } catch (error) {
-          console.error("[MCP Context] Clipboard error:", error);
+          console.error("[MCP Context] Error:", error);
           chrome.notifications.create({
             type: "basic",
             iconUrl: chrome.runtime.getURL("images/icon128.png"),
